@@ -4,6 +4,7 @@
 // @description  Display LiveMap alerts on WME using the WME Scripts SDK and the Waze Live Map API.
 // @match        https://*.waze.com/*/editor*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
+// @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
 // @version      0.1.0
 // @license      MIT
 // @grant        none

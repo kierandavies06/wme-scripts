@@ -56,11 +56,11 @@
             label: 'Object on road',
         },
         HAZARD_ON_ROAD_LANE_CLOSED: {
-            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/lane-closed.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/closure.svg',
             label: 'Lane closed',
         },
         ROAD_CLOSED: {
-            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/road-closed.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/closure.svg',
             label: 'Road closed',
         },
         POLICE: {

@@ -244,6 +244,11 @@
         popupElement.style.display = 'none';
         popupElement.style.whiteSpace = 'normal';
         popupElement.style.border = '1px solid rgba(255, 255, 255, 0.12)';
+        popupElement.style.overflowWrap = 'anywhere';
+        popupElement.style.wordBreak = 'break-word';
+        popupElement.style.hyphens = 'auto';
+        popupElement.style.overflowX = 'hidden';
+        popupElement.style.overflowY = 'auto';
         popupElement.addEventListener('click', (event) => {
             event.stopPropagation();
         });
@@ -387,6 +392,39 @@
         const rect = featureElement.getBoundingClientRect();
         const popup = ensurePopupElement();
         popup.innerHTML = getAlertPopupHtml(alert);
+
+        const viewportPadding = 12;
+        const maxPopupWidth = Math.max(220, window.innerWidth - (viewportPadding * 2));
+        const maxPopupHeight = Math.max(160, window.innerHeight - (viewportPadding * 2));
+        popup.style.maxWidth = `${maxPopupWidth}px`;
+        popup.style.maxHeight = `${maxPopupHeight}px`;
+        popup.style.visibility = 'hidden';
+        popup.style.display = 'block';
+
+        const popupWidth = popup.offsetWidth;
+        const popupHeight = popup.offsetHeight;
+        let left = rect.left + (rect.width / 2);
+        let top = rect.top - 8;
+
+        if ((left - (popupWidth / 2)) < viewportPadding) {
+            left = viewportPadding + (popupWidth / 2);
+        }
+        if ((left + (popupWidth / 2)) > (window.innerWidth - viewportPadding)) {
+            left = window.innerWidth - viewportPadding - (popupWidth / 2);
+        }
+
+        const canRenderAbove = (top - popupHeight) >= viewportPadding;
+        if (canRenderAbove) {
+            popup.style.transform = 'translate(-50%, -100%)';
+            top = Math.max(viewportPadding + popupHeight, top);
+        } else {
+            popup.style.transform = 'translate(-50%, 0)';
+            top = Math.min(
+                window.innerHeight - viewportPadding - popupHeight,
+                Math.max(viewportPadding, rect.bottom + 8),
+            );
+        }
+
         const closeButton = popup.querySelector('[data-popup-close="true"]');
         if (closeButton) {
             closeButton.addEventListener('click', (event) => {
@@ -394,9 +432,9 @@
                 closeAlertPopupState();
             });
         }
-        popup.style.left = `${rect.left + (rect.width / 2)}px`;
-        popup.style.top = `${rect.top - 8}px`;
-        popup.style.display = 'block';
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+        popup.style.visibility = 'visible';
     }
 
     function closeAlertPopupState() {

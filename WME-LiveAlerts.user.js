@@ -5,7 +5,8 @@
 // @match        https://*.waze.com/*/editor*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
-// @version      0.1.1
+// @downloadURL  https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
+// @version      0.1.2
 // @license      MIT
 // @grant        none
 // @namespace    https://greasyfork.org/users/1577571

@@ -32,47 +32,47 @@
 
     const ALERT_DEFINITIONS = {
         HAZARD: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/hazard-6f4014190cae4f1e2f348845aa5ebb39.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/hazard.svg',
             label: 'Hazard',
         },
         HAZARD_ON_ROAD_POT_HOLE: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/pothole-a96fcede7157b5e38d70416c63f3f535.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/pothole.svg',
             label: 'Pothole',
         },
         HAZARD_ON_SHOULDER_CAR_STOPPED: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/vehicle-stopped-cee9f8a7f60a27c787d84accca3765d4.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/vehicle-stopped.svg',
             label: 'Vehicle stopped',
         },
         HAZARD_ON_ROAD_CONSTRUCTION: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/construction-399e2919ff95f0e041e5eb608e038a8e.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/construction.svg',
             label: 'Construction',
         },
         HAZARD_WEATHER_FLOOD: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/flood-67446fc42b4ad5a57dffe9018b98f477.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/flood.svg',
             label: 'Flooding',
         },
         HAZARD_ON_ROAD_OBJECT: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/object-on-road-b0e123b9b77f783ea2b8e160adeab371.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/object-on-road.svg',
             label: 'Object on road',
         },
         HAZARD_ON_ROAD_LANE_CLOSED: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/closure-60cedd129f0979f68901a6eae498cfca.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/lane-closed.svg',
             label: 'Lane closed',
         },
         ROAD_CLOSED: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/closure-60cedd129f0979f68901a6eae498cfca.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/road-closed.svg',
             label: 'Road closed',
         },
         POLICE: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/police-c6e927d3b03d9fb6c9166bccbb1d6558.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/police.svg',
             label: 'Police',
         },
         POLICE_HIDDEN: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/police-c6e927d3b03d9fb6c9166bccbb1d6558.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/police-hidden.svg',
             label: 'Hidden police',
         },
         ACCIDENT: {
-            spriteUrl: 'https://web-assets.waze.com/livemap/stg/accident-major-77533cae62f7b143d7da09ef164b30eb.svg',
+            spriteUrl: 'https://raw.githubusercontent.com/kierandavies06/wme-scripts/refs/heads/main/assets/images/accident.svg',
             label: 'Accident',
         },
     };

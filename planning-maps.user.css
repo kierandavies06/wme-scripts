@@ -1,0 +1,293 @@
+/* ==UserStyle==
+@name           Better Planning Maps (CBC & Luton)
+@namespace      github.com/kierandavies06/wme-scripts
+@version        1.1.0
+@description    A custom stylesheet to improve the layout and usability of the planning maps on Luton and Central Bedfordshire council websites. It removes clutter, expands the map to fill the viewport, and optimizes the interface for easier navigation and use for long Waze House Numbering sessions.
+@author         Kieran Davies
+==/UserStyle== */
+@-moz-document url-prefix("https://planning.luton.gov.uk/online-applications/") {
+
+    #pageheading,
+    #poweredBy,
+    #mapHelp,
+    #mapInfoExpand,
+    #mapCopyright,
+    #footer,
+    #breadcrumbs {
+        display: none !important;
+    }
+
+    /* 1. Setup the main wrappers to use the full viewport height */
+    html,
+    body,
+    #idox,
+    #pa {
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden;
+        /* Prevents double scrollbars */
+    }
+
+    div#idox div#pa {
+        display: flex;
+        flex-direction: column;
+        max-width: 100%;
+
+
+        /* 2. Clean up the header */
+        div#header {
+            width: 100% !important;
+            margin: 0 !important;
+            flex-shrink: 0;
+            /* Ensures header doesn't squash */
+        }
+
+        #header .container {
+            padding: 10px !important;
+        }
+    }
+
+    /* 3. Make the main container a flex-filler */
+    .container {
+        width: 100% !important;
+        padding: 0 !important;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        /* Key: Fills remaining vertical space */
+    }
+
+    /* 4. Content and Map handling */
+    div.content {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        margin: 0 !important;
+    }
+
+    /* The Map Wrapper */
+    #mapSearch {
+        flex: 1;
+        /* Fills all space below the tabs/toolbar */
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* The actual Iframe - No more calc() needed! */
+    #mapSearch iframe {
+        flex: 1 !important;
+        width: 100% !important;
+        height: auto !important;
+        /* Let flex handle the height */
+        border: none;
+    }
+
+    /* 5. UI Cleanup (Hiding clutter) */
+    #toolbar {
+        margin-bottom: 0 !important;
+    }
+
+    ul.tabs {
+        margin: 0 !important;
+    }
+
+}
+
+@-moz-document domain("my.centralbedfordshire.gov.uk") {
+
+    footer.site-footer,
+    .site-header,
+    .sidebar,
+    .skip-links,
+    .back-to-top,
+    #atTabBar h2,
+    .atBaseMapSwitcher,
+    #atPoweredBy,
+    .page-heading {
+        display: none !important;
+    }
+
+    body:not(.home) .site-main:after {
+        content: none !important;
+        display: none !important;
+    }
+
+    html,
+    body {
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+
+    body.inner.one-column {
+        overflow: hidden !important;
+    }
+
+    main.site-main,
+    #atContainer,
+    #atMapSpurForm,
+    #atMyPage,
+    #atContent {
+        overflow: hidden !important;
+    }
+
+    main.site-main,
+    main.site-main>.container,
+    .site-content,
+    #content,
+    .page-content,
+    #atContainer,
+    #atMapSpurForm,
+    #atMyPage,
+    #atContent {
+        width: 100% !important;
+        max-width: none !important;
+        box-sizing: border-box !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    main.site-main>.container {
+        padding: 0 8px !important;
+        margin: 0 !important;
+    }
+
+    h1.page-heading {
+        font-size: 18px !important;
+        margin-top: 4px !important;
+        margin-bottom: 6px !important;
+        line-height: 1.2 !important;
+    }
+
+    #atTabBar {
+        padding: 0 !important;
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+    }
+
+
+    #atTabBar button {
+        padding: 4px 8px !important;
+        min-height: 0 !important;
+        line-height: 1.1 !important;
+        font-size: 12px !important;
+    }
+
+    #atLocationBar {
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
+    }
+
+    #atLocationSearch p {
+        margin: 0 !important;
+    }
+
+    #atLocationBar_lblSearchBox {
+        margin-right: 6px !important;
+        font-size: 12px !important;
+    }
+
+    #atLocationBar_txtSearchBox,
+    #atLocationBar_btnPerformSearch,
+    #atButtonBar_btnOtherThings,
+    #atButtonBar_btnResetPage {
+        font-size: 12px !important;
+        line-height: 1.1 !important;
+        min-height: 0 !important;
+        padding: 4px 8px !important;
+        margin: 0 2px 0 0 !important;
+    }
+
+    #atButtonBar {
+        margin: 2px 0 !important;
+    }
+
+    #atMyPage,
+    #atContent,
+    #atMyMaps,
+    #atMap {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    #atMyMaps,
+    #atMap {
+        min-height: 520px !important;
+        height: calc(100vh - 170px) !important;
+    }
+
+    .atMapContent,
+    #atMap .atMapContent,
+    #atMap .atMapContent>div,
+    #atMap .olMap,
+    #atMap .olMapViewport {
+        min-height: 520px !important;
+        height: calc(100vh - 170px) !important;
+        max-height: none !important;
+    }
+
+    .atPanelContent.olMap,
+    .atPanelContent.olMap>div:not(#atPanelToggle):not(#atZoomControls):not(.atPanelToggle):not(.atZoomControls),
+    .olMap {
+        width: 100% !important;
+        max-width: none !important;
+    }
+
+    #atPWparent,
+    .atPanelWrapperParent {
+        max-height: calc(100vh - 182px) !important;
+    }
+
+    #atPanelToggle,
+    .atPanelToggle {
+        position: fixed !important;
+        left: auto !important;
+        top: auto !important;
+        right: 14px !important;
+        bottom: 141px !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: max-content !important;
+        z-index: 10020 !important;
+        margin: 0 !important;
+        transform: none !important;
+        background: transparent !important;
+    }
+
+    #atZoomControls,
+    .atZoomControls {
+        position: fixed !important;
+        left: auto !important;
+        top: auto !important;
+        right: 14px !important;
+        bottom: 14px !important;
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: max-content !important;
+        z-index: 10021 !important;
+        margin: 0 !important;
+        transform: none !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 4px !important;
+        background: transparent !important;
+    }
+
+    #atPanelToggle a,
+    .atPanelToggle a,
+    #atZoomControls a,
+    .atZoomControls a {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        float: none !important;
+        margin: 0 !important;
+    }
+
+}

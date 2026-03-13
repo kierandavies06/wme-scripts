@@ -45,11 +45,20 @@ If you install directly from GitHub raw URLs instead of Greasy Fork:
 
 ## Planning Maps User Style
 
-I have also created a custom user stylesheet to improve maximise the usability of certain council planning maps when used alongside WME for finding and verifying house numbers.
+I have also created a custom user stylesheet to improve and maximise the usability of supported council planning maps when used alongside WME for finding and verifying house numbers.
 You can install this user style in a userstyle manager like [Stylus](https://add0n.com/stylus.html).
 
 ### Currently modified sites:
+#### Idox Public Access powered planning maps for the following councils:
 - Luton Council: `https://planning.luton.gov.uk/online-applications/`
+- North Hertfordshire Council: `https://pa2.north-herts.gov.uk/online-applications/`
+- Stevenage Borough Council: `https://publicaccess.stevenage.gov.uk/online-applications/`
+- Dacorum Borough Council: `https://planning.dacorum.gov.uk/publicaccess/`
+- Hertsmere Borough Council: `https://www6.hertsmere.gov.uk/online-applications/`
+- Three Rivers District Council: `https://www3.threerivers.gov.uk/online-applications/`
+- City of London: `https://www.planning2.cityoflondon.gov.uk/online-applications/`
+
+#### Astun Technology's iShare portals for the following councils:
 - Central Bedfordshire Council: `https://my.centralbedfordshire.gov.uk/`
 
 If you would like me to add support for other councils' planning maps, please open an issue with the URL of the council's public planning map.

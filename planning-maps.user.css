@@ -1,11 +1,21 @@
 /* ==UserStyle==
-@name           Better Planning Maps (CBC & Luton)
+@name           Better Planning Maps
 @namespace      github.com/kierandavies06/wme-scripts
-@version        1.1.0
+@version        1.1.2
 @description    A custom stylesheet to improve the layout and usability of the planning maps on Luton and Central Bedfordshire council websites. It removes clutter, expands the map to fill the viewport, and optimizes the interface for easier navigation and use for long Waze House Numbering sessions.
 @author         Kieran Davies
 ==/UserStyle== */
-@-moz-document url-prefix("https://planning.luton.gov.uk/online-applications/") {
+
+/* ==Idox Public Access Planning Maps== */
+
+/* Shared Idox Public Access layout (Luton, North Herts, Stevenage, Dacorum, Hertsmere, Three Rivers, City of London) */
+@-moz-document domain("planning.luton.gov.uk"),
+domain("pa2.north-herts.gov.uk"),
+domain("publicaccess.stevenage.gov.uk"),
+domain("planning.dacorum.gov.uk"),
+domain("www6.hertsmere.gov.uk"),
+domain("www3.threerivers.gov.uk"),
+domain("www.planning2.cityoflondon.gov.uk") {
 
     #pageheading,
     #poweredBy,
@@ -13,7 +23,8 @@
     #mapInfoExpand,
     #mapCopyright,
     #footer,
-    #breadcrumbs {
+    #breadcrumbs,
+    div#idox div#pa div.container div.content p {
         display: none !important;
     }
 
@@ -34,10 +45,10 @@
         flex-direction: column;
         max-width: 100%;
 
-
         /* 2. Clean up the header */
         div#header {
             width: 100% !important;
+            max-height: 50px !important;
             margin: 0 !important;
             flex-shrink: 0;
             /* Ensures header doesn't squash */
@@ -91,9 +102,207 @@
     ul.tabs {
         margin: 0 !important;
     }
+}
+
+/* Stevenage and Dacorum: hide extra footer bar */
+@-moz-document domain("publicaccess.stevenage.gov.uk"),
+domain("planning.dacorum.gov.uk") {
+
+    #footer-top {
+        display: none !important;
+    }
 
 }
 
+/* Luton, North Hertfordshire, Stevenage, Hertsmere, Three Rivers and City of London: normalized header/logo sizing */
+@-moz-document domain("planning.luton.gov.uk"),
+domain("pa2.north-herts.gov.uk"),
+domain("publicaccess.stevenage.gov.uk"),
+domain("www6.hertsmere.gov.uk"),
+domain("www3.threerivers.gov.uk"),
+domain("www.planning2.cityoflondon.gov.uk") {
+
+    div#idox div#pa {
+        div#header {
+            height: 50px !important;
+
+            #header .container {
+                padding: 0 10px !important;
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #logo {
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+            }
+
+            #logo a {
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+            }
+
+            #logo a img {
+                height: 90% !important;
+                width: auto !important;
+                max-height: 30px !important;
+                object-fit: contain !important;
+                display: block !important;
+            }
+
+            #logo a span {
+                display: flex !important;
+                align-items: center !important;
+                height: auto !important;
+                margin-left: 10px !important;
+                color: #fff !important;
+                font-size: 24px !important;
+                font-weight: bold !important;
+            }
+        }
+    }
+
+}
+
+/* Dacorum Borough Council: custom branded header and logo alignment */
+@-moz-document domain("planning.dacorum.gov.uk") {
+
+    div#idox div#pa {
+        div#header {
+            height: 50px !important;
+            padding: 0 !important;
+            border: none !important;
+            background-color: #616161;
+
+            #header .container {
+                padding: 0 10px !important;
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+                box-sizing: border-box !important;
+            }
+
+            #logo {
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+            }
+
+            #logo a {
+                display: flex !important;
+                align-items: center !important;
+                height: 100% !important;
+            }
+
+            #logo a img {
+                height: 90% !important;
+                width: auto !important;
+                max-height: 30px !important;
+                object-fit: contain !important;
+                display: block !important;
+            }
+
+            #logo a span {
+                display: flex !important;
+                align-items: center !important;
+                height: auto !important;
+                margin-left: 10px !important;
+                color: #fff !important;
+                font-size: 24px !important;
+                font-weight: bold !important;
+            }
+        }
+    }
+
+    /* logo fix for Dacorum - the logo is absolutely positioned */
+    div#idox div#pa div#header .container div#logo {
+        position: absolute !important;
+        top: 50% !important;
+        left: 10px !important;
+        transform: translateY(-50%) !important;
+    }
+
+}
+
+/* North Hertfordshire: force logo image size to prevent 0x0 collapse */
+@-moz-document domain("pa2.north-herts.gov.uk") {
+
+    div#idox div#pa div#header #logo img {
+        height: 30px !important;
+        min-height: 30px !important;
+        width: auto !important;
+        max-width: none !important;
+        display: block !important;
+    }
+
+}
+
+/* Three Rivers: override their custom header background to prevent it from taking up too much vertical space and to improve logo contrast */
+@-moz-document domain("www3.threerivers.gov.uk") {
+    div#idox div#pa div#header {
+        height: 50px !important;
+        padding: 0 !important;
+        border: none !important;
+        background: none !important;
+    }
+
+    div#idox div#pa div#header .container {
+        
+        min-height: 50px !important;
+        height: 50px !important;
+        background: none !important;
+    }
+
+}
+
+/* All Idox logos: force-remove left margins from site styles */
+@-moz-document domain("planning.luton.gov.uk"),
+domain("pa2.north-herts.gov.uk"),
+domain("publicaccess.stevenage.gov.uk"),
+domain("planning.dacorum.gov.uk"),
+domain("www6.hertsmere.gov.uk"),
+domain("www3.threerivers.gov.uk"),
+domain("www.planning2.cityoflondon.gov.uk") {
+
+    div#idox div#pa div#header #logo,
+    div#idox div#pa div#header #logo a,
+    div#idox div#pa div#header #logo img {
+        margin-left: 0 !important;
+    }
+
+    div#idox div#pa div#header #logo a span.sr-only {
+        display: flex !important;
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        clip: auto !important;
+        clip-path: none !important;
+        overflow: visible !important;
+        white-space: normal !important;
+    }
+
+}
+
+/* Stevenage, Three Rivers & City of London: force logo text to black for better contrast with their custom header background */
+@-moz-document domain("publicaccess.stevenage.gov.uk"),
+domain("www3.threerivers.gov.uk"),
+domain("www.planning2.cityoflondon.gov.uk") {
+
+    div#idox div#pa div#header #logo a span {
+        color: #000 !important;
+    }
+
+}
+
+/* ==/Idox Public Access Planning Maps== */
+
+/* ==Astun Technologies iShare Planning Maps== */
+
+/* Central Bedfordshire Council */
 @-moz-document domain("my.centralbedfordshire.gov.uk") {
 
     footer.site-footer,
@@ -291,3 +500,5 @@
     }
 
 }
+
+/* ==/Astun Technologies iShare Planning Maps== */

@@ -1,0 +1,24 @@
+{
+  "name": "wme-scripts",
+  "version": "1.0.0",
+  "description": "Userscripts for Waze Map Editor (WME), maintained in a single repository.",
+  "main": "WME-LiveAlerts.user.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kierandavies06/wme-scripts.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kierandavies06/wme-scripts/issues"
+  },
+  "homepage": "https://github.com/kierandavies06/wme-scripts#readme",
+  "devDependencies": {
+    "wme-sdk-typings": "https://web-assets.waze.com/wme_sdk_docs/production/latest/wme-sdk-typings.tgz"
+  }
+}

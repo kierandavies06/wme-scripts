@@ -1,0 +1,13 @@
+{
+    "compilerOptions": {
+        "checkJs": true,
+        "lib": ["es2017", "dom"],
+        "types": [
+            "wme-sdk-typings"
+        ]
+    },
+    "include": [
+        "**/*.js",
+        "**/*.d.ts"
+    ]
+}

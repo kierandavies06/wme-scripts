@@ -6,7 +6,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-SuperHN.user.js
 // @downloadURL  https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-SuperHN.user.js
-// @version      0.1.3
+// @version      0.1.4
 // @license      MIT
 // @grant        none
 // @namespace    https://greasyfork.org/users/1577571
@@ -26,6 +26,10 @@
   const FALSE_POSITIVE_STORAGE_KEY = `${SCRIPT_ID}-false-positive-roads`;
   const HIGHLIGHT_SETTINGS_STORAGE_KEY = `${SCRIPT_ID}-highlight-settings`;
   const SCANNER_UI_STORAGE_KEY = `${SCRIPT_ID}-scanner-ui-state`;
+  const SHORTCUT_IDS = {
+    toggleRun: `${SCRIPT_ID}-toggle-run`,
+    exitClickMode: `${SCRIPT_ID}-exit-click-mode`,
+  };
 
   const UI_IDS = {
     header: "superhn-overlay-header",
@@ -2867,6 +2871,22 @@
     };
   }
 
+  function advanceSequenceValue(currentValue, steps, mode, skip13, incrementStep = 1) {
+    let nextValue = currentValue;
+    const normalizedSteps = Math.max(0, Math.floor(Number(steps) || 0));
+
+    for (let stepIndex = 0; stepIndex < normalizedSteps; stepIndex += 1) {
+      nextValue = getNextSequenceValue(
+        nextValue,
+        mode,
+        skip13,
+        incrementStep,
+      );
+    }
+
+    return nextValue;
+  }
+
   function refreshIncrementControl() {
     const incrementWrap = panelElement?.querySelector(
       `#${UI_IDS.incrementWrap}`,
@@ -3413,14 +3433,29 @@
     return Number.isFinite(segmentId) ? segmentId : null;
   }
 
+  function getSelectedSegmentIds(sdk) {
+    const selection = sdk?.Editing?.getSelection?.();
+    if (!selection || !Array.isArray(selection.ids)) {
+      return [];
+    }
+
+    if (String(selection.objectType).toLowerCase() !== "segment") {
+      return [];
+    }
+
+    return selection.ids
+      .map((segmentId) => Number(segmentId))
+      .filter((segmentId) => Number.isFinite(segmentId));
+  }
+
   function getSelectedRoadKey(sdk) {
-    const selectedSegmentId = getSelectedSegmentId(sdk);
-    if (selectedSegmentId === null) {
+    const selectedSegmentIds = getSelectedSegmentIds(sdk);
+    if (selectedSegmentIds.length < 1) {
       return null;
     }
 
     const segment = sdk?.DataModel?.Segments?.getById?.({
-      segmentId: selectedSegmentId,
+      segmentId: selectedSegmentIds[0],
     });
     if (!segment) {
       return null;
@@ -3746,8 +3781,26 @@
       return;
     }
 
-    const activeSegmentId = getSelectedSegmentId(sdk);
-    if (activeSegmentId === clickNumberingSession.selectedSegmentId) {
+    const expectedSegmentIds = Array.from(
+      new Set(
+        (Array.isArray(clickNumberingSession.selectedRoadSegmentIds)
+          ? clickNumberingSession.selectedRoadSegmentIds
+          : [clickNumberingSession.selectedSegmentId]
+        )
+          .map((segmentId) => Number(segmentId))
+          .filter((segmentId) => Number.isFinite(segmentId)),
+      ),
+    );
+    if (expectedSegmentIds.length < 1) {
+      return;
+    }
+
+    const activeSegmentIds = getSelectedSegmentIds(sdk);
+    const hasSameSelection =
+      activeSegmentIds.length === expectedSegmentIds.length &&
+      expectedSegmentIds.every((segmentId) => activeSegmentIds.includes(segmentId));
+
+    if (hasSameSelection) {
       return;
     }
 
@@ -3755,7 +3808,7 @@
       sdk.Editing.setSelection({
         selection: {
           objectType: "segment",
-          ids: [clickNumberingSession.selectedSegmentId],
+          ids: expectedSegmentIds,
         },
       });
     } catch {}
@@ -3832,41 +3885,86 @@
     return !isClientPointInsideOverlay(event.clientX, event.clientY);
   }
 
-  function isEditableKeyboardTarget(target) {
-    if (!target) {
+  function upsertShortcut(sdk, shortcut) {
+    if (!sdk?.Shortcuts || !shortcut?.shortcutId) {
       return false;
     }
 
-    if (
-      target instanceof HTMLInputElement ||
-      target instanceof HTMLTextAreaElement ||
-      target instanceof HTMLSelectElement
-    ) {
+    try {
+      if (sdk.Shortcuts.isShortcutRegistered({ shortcutId: shortcut.shortcutId })) {
+        sdk.Shortcuts.deleteShortcut({ shortcutId: shortcut.shortcutId });
+      }
+      sdk.Shortcuts.createShortcut(shortcut);
       return true;
+    } catch (error) {
+      console.error(
+        "[WME Super House Numbers] Failed to register SDK shortcut",
+        shortcut.shortcutId,
+        error,
+      );
+      return false;
     }
-
-    if (target instanceof HTMLElement && target.isContentEditable) {
-      return true;
-    }
-
-    return false;
   }
 
-  function shouldInterceptHouseNumberHotkey(event) {
-    if (!event || event.repeat) {
-      return false;
+  function registerKeyboardShortcuts(sdk) {
+    const toggleShortcut = {
+      callback: () => {
+        if (isPanelClosed) {
+          isPanelClosed = false;
+          refreshOverlayVisibility();
+        }
+        runSuperHouseNumbers(sdk);
+      },
+      description: "Start/stop Super House Numbers tool",
+      shortcutId: SHORTCUT_IDS.toggleRun,
+      shortcutKeys: "H",
+    };
+
+    const canUseH =
+      !sdk?.Shortcuts?.areShortcutKeysInUse ||
+      !sdk.Shortcuts.areShortcutKeysInUse({ shortcutKeys: "H" });
+
+    const didRegisterH = canUseH
+      ? upsertShortcut(sdk, toggleShortcut)
+      : false;
+
+    if (!didRegisterH) {
+      upsertShortcut(sdk, {
+        ...toggleShortcut,
+        description:
+          "Start/stop Super House Numbers tool (assign H in WME Shortcuts to replace native HN key)",
+        shortcutKeys: null,
+      });
     }
 
-    const key = String(event.key ?? "").toLowerCase();
-    if (key !== "h") {
-      return false;
+    try {
+      if (sdk?.Shortcuts?.isShortcutRegistered?.({
+        shortcutId: SHORTCUT_IDS.exitClickMode,
+      })) {
+        sdk.Shortcuts.deleteShortcut({
+          shortcutId: SHORTCUT_IDS.exitClickMode,
+        });
+      }
+    } catch {}
+
+    return {
+      didRegisterH,
+    };
+  }
+
+  function showShortcutRegistrationStatus(shortcutStatus) {
+    if (!shortcutStatus) {
+      return;
     }
 
-    if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) {
-      return false;
+    if (shortcutStatus.didRegisterH) {
+      updateStatus("Shortcut H is active for Super HN. Esc exits click mode.");
+      return;
     }
 
-    return !isEditableKeyboardTarget(event.target);
+    updateStatus(
+      "Assign H to Super HN in WME Shortcuts to replace native house number key.",
+    );
   }
 
   function stopClickNumberingMode(
@@ -3889,6 +3987,9 @@
 
     clickNumberingSession = {
       selectedSegmentId: context.selectedSegmentId,
+      selectedRoadSegmentIds: context.roadSegmentCandidates
+        .map((segment) => Number(segment?.id))
+        .filter((segmentId) => Number.isFinite(segmentId)),
       roadSegmentCandidates: context.roadSegmentCandidates,
       houseNumbersApi: context.houseNumbersApi,
       mode: settings.mode,
@@ -3913,6 +4014,8 @@
       refreshRunButtonState(sdk);
       return;
     }
+
+    keepClickSessionSegmentSelected(sdk);
 
     updateStatus("Click map to add HNs. Shift-click to finish, Esc to exit.");
     refreshRunButtonState(sdk);
@@ -3992,8 +4095,9 @@
 
     if (isCtrlClick) {
       if (isAltClick) {
-        clickNumberingSession.currentValue = getNextSequenceValue(
+        clickNumberingSession.currentValue = advanceSequenceValue(
           clickNumberingSession.currentValue,
+          2,
           clickNumberingSession.mode,
           clickNumberingSession.skip13,
           clickNumberingSession.incrementStep,
@@ -4023,21 +4127,13 @@
 
     clickNumberingSession.ctrlLetterState = null;
 
-    clickNumberingSession.currentValue = getNextSequenceValue(
+    clickNumberingSession.currentValue = advanceSequenceValue(
       clickNumberingSession.currentValue,
+      isAltClick ? 2 : 1,
       clickNumberingSession.mode,
       clickNumberingSession.skip13,
       clickNumberingSession.incrementStep,
     );
-
-    if (isAltClick) {
-      clickNumberingSession.currentValue = getNextSequenceValue(
-        clickNumberingSession.currentValue,
-        clickNumberingSession.mode,
-        clickNumberingSession.skip13,
-        clickNumberingSession.incrementStep,
-      );
-    }
 
     const nextValueText = formatHouseNumberValue(
       clickNumberingSession.currentValue,
@@ -4690,6 +4786,8 @@ for all workflows/modes.</div>
       });
 
       renderPanel(sdk);
+      const shortcutStatus = registerKeyboardShortcuts(sdk);
+      showShortcutRegistrationStatus(shortcutStatus);
       startSidebarScannerMountWatcher(sdk);
 
       const overlayState = loadOverlayState();
@@ -4707,11 +4805,7 @@ for all workflows/modes.</div>
       registerSdkEvent("wme-selection-changed", () => {
         keepClickSessionSegmentSelected(sdk);
         const selectedRoadKey = getSelectedRoadKey(sdk);
-        if (
-          selectedRoadKey &&
-          lastSelectedRoadKey &&
-          selectedRoadKey !== lastSelectedRoadKey
-        ) {
+        if (selectedRoadKey && selectedRoadKey !== lastSelectedRoadKey) {
           resetStartForRoadChange(sdk);
         } else {
           updateStartFromRoadMax(sdk);
@@ -4804,25 +4898,13 @@ for all workflows/modes.</div>
       window.addEventListener(
         "keydown",
         (event) => {
-          if (shouldInterceptHouseNumberHotkey(event)) {
-            cancelEvent(event, { stopImmediate: true });
-
-            if (isPanelClosed) {
-              isPanelClosed = false;
-              refreshOverlayVisibility();
-            }
-
-            runSuperHouseNumbers(sdk);
+          if (event.key === "Escape" && clickNumberingSession) {
+            stopClickNumberingMode(sdk, "Exited click-numbering mode.");
             return;
           }
 
           setCtrlModifierHeld(Boolean(event.ctrlKey || event.metaKey));
           setAltModifierHeld(Boolean(event.altKey));
-
-          if (event.key === "Escape" && clickNumberingSession) {
-            cancelEvent(event, { stopImmediate: false });
-            stopClickNumberingMode(sdk, "Exited click-numbering mode.");
-          }
         },
         true,
       );

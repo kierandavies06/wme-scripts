@@ -2887,6 +2887,26 @@
     return nextValue;
   }
 
+  function normalizeSequenceValue(currentValue, mode, skip13, incrementStep = 1) {
+    if (!currentValue) {
+      return null;
+    }
+
+    if (currentValue.kind === "numeric") {
+      return {
+        kind: "numeric",
+        base: getFirstNumberInSequence(
+          currentValue.base,
+          mode,
+          skip13,
+          incrementStep,
+        ),
+      };
+    }
+
+    return currentValue;
+  }
+
   function refreshIncrementControl() {
     const incrementWrap = panelElement?.querySelector(
       `#${UI_IDS.incrementWrap}`,
@@ -4047,6 +4067,14 @@
     const isCtrlClick = isCtrlClickEvent(event) || pendingCtrlModifier;
     const pendingAltModifier = consumePendingAltClickModifier();
     const isAltClick = isAltClickEvent(event) || pendingAltModifier;
+
+    clickNumberingSession.currentValue = normalizeSequenceValue(
+      clickNumberingSession.currentValue,
+      clickNumberingSession.mode,
+      clickNumberingSession.skip13,
+      clickNumberingSession.incrementStep,
+    );
+
     let numberToAdd = formatHouseNumberValue(
       clickNumberingSession.currentValue,
     );

@@ -6,7 +6,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
 // @downloadURL  https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
-// @version      0.1.2
+// @version      0.1.3
 // @license      MIT
 // @grant        none
 // @namespace    https://greasyfork.org/users/1577571
@@ -41,9 +41,12 @@
         POLICE_HIDDEN: ['police-hidden.svg', 'Hidden police'],
         ACCIDENT: ['accident.svg', 'Accident'],
     };
-    const ALERT_DEFINITIONS = Object.fromEntries(
-        Object.entries(ALERT_DEFINITION_ROWS).map(([key, [spriteUrl, label]]) => [key, { spriteUrl, label }]),
-    );
+    /** @type {Record<string, { spriteUrl: string, label: string }>} */
+    const ALERT_DEFINITIONS = Object.entries(ALERT_DEFINITION_ROWS)
+        .reduce((definitions, [key, [spriteUrl, label]]) => {
+            definitions[key] = { spriteUrl, label };
+            return definitions;
+        }, {});
 
     let lastFetchedBounds = null;
     let cachedAlerts = [];
@@ -94,7 +97,7 @@
             counts.set(label, (counts.get(label) || 0) + 1);
         });
 
-        return [...counts.entries()]
+        return Array.from(counts.entries())
             .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
             .slice(0, limit)
             .map(([label, count]) => ({ label, count }));
@@ -351,12 +354,22 @@
         };
     }
 
+    /**
+     * @typedef {object} AlertRenderGroup
+     * @property {Array<any>} alerts
+     * @property {number} lon
+     * @property {number} lat
+     * @property {number} lonSum
+     * @property {number} latSum
+     */
+
     function groupAlertsForRendering(sdk, alerts) {
         const bounds = getBoundsParams(sdk);
         const degPerPixelX = Math.abs(bounds.right - bounds.left) / Math.max(1, window.innerWidth);
         const degPerPixelY = Math.abs(bounds.top - bounds.bottom) / Math.max(1, window.innerHeight);
         const clusterDistancePx = 30;
 
+        /** @type {Array<AlertRenderGroup>} */
         const groups = [];
         alerts.forEach((alert) => {
             const lonLat = getAlertLonLat(alert);
@@ -364,6 +377,7 @@
                 return;
             }
 
+            /** @type {AlertRenderGroup | null} */
             let nearestGroup = null;
             let nearestDistancePx = Number.POSITIVE_INFINITY;
 

@@ -6,7 +6,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-SuperHN.user.js
 // @downloadURL  https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-SuperHN.user.js
-// @version      0.1.4
+// @version      0.2.0
 // @license      MIT
 // @grant        none
 // @namespace    https://greasyfork.org/users/1577571
@@ -38,6 +38,8 @@
     close: "superhn-overlay-close",
     toolLocation: "superhn-tool-location",
     workflow: "superhn-workflow",
+    placementMode: "superhn-placement-mode",
+    autoRppForNumberedRoad: "superhn-auto-rpp-for-numbered-road",
     start: "superhn-start-number",
     endWrap: "superhn-end-wrap",
     end: "superhn-end-number",
@@ -47,6 +49,7 @@
     skip13: "superhn-skip-13",
     run: "superhn-run",
     status: "superhn-status",
+    rppHint: "superhn-rpp-street-hint",
     tip: "superhn-tip",
   };
 
@@ -94,6 +97,7 @@
   let scriptsTabContentRoot = null;
   let scriptsTabLabelElement = null;
   let scriptsTabInitPromise = null;
+  let activeSdk = null;
 
   function normalizeFalsePositiveRoads(rawValue) {
     if (!rawValue || typeof rawValue !== "object") {
@@ -552,6 +556,100 @@
       segmentId,
       point: { type: "Point", coordinates: [lonLat[0], lonLat[1]] },
     });
+  }
+
+  function addResidentialPlaceAtPoint(
+    venuesApi,
+    number,
+    lonLat,
+    streetId = null,
+    streetIdResolver = null,
+  ) {
+    if (!venuesApi || !Array.isArray(lonLat) || lonLat.length < 2) {
+      return false;
+    }
+
+    try {
+      const venueId = String(
+        venuesApi.addVenue({
+          category: "RESIDENTIAL",
+          geometry: { type: "Point", coordinates: [lonLat[0], lonLat[1]] },
+        }),
+      );
+
+      try {
+        venuesApi.updateVenueIsResidential?.({
+          venueId,
+          isResidential: true,
+        });
+      } catch {}
+
+      try {
+        if (
+          streetId &&
+          (typeof streetId === "string" || Number.isFinite(streetId))
+        ) {
+          venuesApi.updateAddress?.({
+            venueId,
+            streetId,
+            houseNumber: String(number),
+          });
+        }
+      } catch {}
+
+      return true;
+    } catch (error) {
+      console.error(
+        "[WME Super House Numbers] Failed to add residential place point",
+        error,
+      );
+      return false;
+    }
+  }
+
+  function getOrCreateDeNumberedStreet(sdk, streetName, cityId) {
+    const streetsApi = sdk?.DataModel?.Streets;
+
+    if (!streetsApi) {
+      return null;
+    }
+
+    try {
+      const street = streetsApi.getStreet?.({ streetName, cityId });
+      if (street) {
+        return street;
+      } else {
+        const newStreet = streetsApi.addStreet?.({ streetName, cityId });
+        return newStreet || null;
+      }
+    } catch (error) {
+      console.error(
+        "[WME Super House Numbers] Failed to get or create street",
+        error,
+      );
+      return null;
+    }
+  }
+
+  function isLikelyNumberedRoadName(roadName) {
+    const normalized = String(roadName ?? "").trim();
+    return /^[A-Za-z]\d{1,4}[A-Za-z]?\s*-\s+/.test(normalized);
+  }
+
+  function stripNumberedRoadPrefix(roadName) {
+    const normalized = String(roadName ?? "").trim();
+    if (!normalized) {
+      return "";
+    }
+
+    const match = normalized.match(
+      /^[A-Za-z]\d{1,4}(?:\s?\([A-Za-z]\))?[A-Za-z]?\s*-\s+(.+)$/,
+    );
+    if (match?.[1]) {
+      return String(match[1]).trim();
+    }
+
+    return normalized;
   }
 
   function addChangeListener(element, handler) {
@@ -2406,6 +2504,7 @@
     const workflowValue = rawSettings?.workflow;
     const modeValue = rawSettings?.mode;
     const toolLocationValue = rawSettings?.toolLocation;
+    const placementModeValue = rawSettings?.placementMode;
     const startValue = String(rawSettings?.startNumber ?? "1").trim();
     const endValue = String(rawSettings?.endNumber ?? "10").trim();
     const incrementValue = Number(rawSettings?.incrementStep);
@@ -2425,6 +2524,8 @@
           : workflowValue === "area"
             ? "area"
             : "line",
+      placementMode: placementModeValue === "rpp" ? "rpp" : "hn",
+      autoRppForNumberedRoad: rawSettings?.autoRppForNumberedRoad !== false,
       startNumber: startValue || "1",
       endNumber: endValue || "10",
       mode:
@@ -2582,6 +2683,11 @@
       "overlay";
     const workflowValue =
       panelElement?.querySelector(`#${UI_IDS.workflow}`)?.value || "line";
+    const placementModeValue =
+      panelElement?.querySelector(`#${UI_IDS.placementMode}`)?.value || "hn";
+    const autoRppForNumberedRoadValue = Boolean(
+      panelElement?.querySelector(`#${UI_IDS.autoRppForNumberedRoad}`)?.checked,
+    );
     const startValue = String(
       panelElement?.querySelector(`#${UI_IDS.start}`)?.value ?? "",
     ).trim();
@@ -2600,6 +2706,8 @@
     return normalizeUiSettings({
       toolLocation: toolLocationValue,
       workflow: workflowValue,
+      placementMode: placementModeValue,
+      autoRppForNumberedRoad: autoRppForNumberedRoadValue,
       startNumber: startValue,
       endNumber: endValue,
       mode: modeValue,
@@ -2731,6 +2839,8 @@
     }
 
     const workflow = getWorkflowMode();
+    const placementMode = getUiSettings().placementMode;
+    const placementLabel = placementMode === "rpp" ? "RPPs" : "HNs";
 
     if (workflow === "line") {
       tipElement.textContent =
@@ -2753,12 +2863,59 @@
         clickNumberingSession && isAltModifierHeld
           ? "\nAlt is held: next click skips one extra number in sequence."
           : "";
-      tipElement.textContent = `Tip: Click mode ignores End #.\nUse Shift-click or Esc to finish.\nStart # auto-increments after each add.\nCtrl+Click places temporary letter suffixes (e.g. 25a) without changing the normal next click number.\nAlt+Click skips the next number in the normal sequence.\nCtrl+Alt+Click applies both behaviors.${ctrlHeldHint}${altHeldHint}`;
+      tipElement.textContent = `Tip: Click mode ignores End #.\nUse Shift-click or Esc to finish.\nStart # auto-increments after each add.\nCurrent placement target: ${placementLabel}.\nCtrl+Click places temporary letter suffixes (e.g. 25a) without changing the normal next click number.\nAlt+Click skips the next number in the normal sequence.\nCtrl+Alt+Click applies both behaviors.${ctrlHeldHint}${altHeldHint}`;
       return;
     }
 
     tipElement.textContent =
       "Tip: End # is inclusive\nfor all workflows/modes.";
+  }
+
+  function getCurrentRppStreetHintText(sdk) {
+    const settings = getUiSettings();
+    const isRppMode = settings.placementMode === "rpp";
+
+    const selectedSegmentId = getSelectedSegmentId(sdk);
+    if (selectedSegmentId === null) {
+      return isRppMode
+        ? "RPP street: select a road segment to detect target street."
+        : "RPP preview: select a road segment to detect target street.";
+    }
+
+    const metadata = resolveRppRoadMetadata(sdk, selectedSegmentId);
+    if (!metadata.roadName) {
+      return isRppMode
+        ? "RPP street: could not detect road name."
+        : "RPP preview: could not detect road name.";
+    }
+
+    const normalizedStreet = metadata.rppStreetName || metadata.roadName;
+    if (
+      metadata.isNumberedRoad &&
+      normalizedStreet &&
+      normalizedStreet !== metadata.roadName
+    ) {
+      return isRppMode
+        ? `RPP street: ${normalizedStreet} (from ${metadata.roadName})`
+        : `RPP preview: ${normalizedStreet} (from ${metadata.roadName})`;
+    }
+
+    return isRppMode
+      ? `RPP street: ${normalizedStreet}`
+      : `RPP preview: ${normalizedStreet}`;
+  }
+
+  function refreshRppStreetHint(sdk = activeSdk) {
+    const hintElement = panelElement?.querySelector(`#${UI_IDS.rppHint}`);
+    if (!hintElement) {
+      return;
+    }
+
+    const settings = getUiSettings();
+    hintElement.style.display = "block";
+    hintElement.style.opacity =
+      settings.placementMode === "rpp" ? "0.75" : "0.55";
+    hintElement.textContent = getCurrentRppStreetHintText(sdk);
   }
 
   function refreshEndNumberControl() {
@@ -2871,23 +3028,29 @@
     };
   }
 
-  function advanceSequenceValue(currentValue, steps, mode, skip13, incrementStep = 1) {
+  function advanceSequenceValue(
+    currentValue,
+    steps,
+    mode,
+    skip13,
+    incrementStep = 1,
+  ) {
     let nextValue = currentValue;
     const normalizedSteps = Math.max(0, Math.floor(Number(steps) || 0));
 
     for (let stepIndex = 0; stepIndex < normalizedSteps; stepIndex += 1) {
-      nextValue = getNextSequenceValue(
-        nextValue,
-        mode,
-        skip13,
-        incrementStep,
-      );
+      nextValue = getNextSequenceValue(nextValue, mode, skip13, incrementStep);
     }
 
     return nextValue;
   }
 
-  function normalizeSequenceValue(currentValue, mode, skip13, incrementStep = 1) {
+  function normalizeSequenceValue(
+    currentValue,
+    mode,
+    skip13,
+    incrementStep = 1,
+  ) {
     if (!currentValue) {
       return null;
     }
@@ -3818,7 +3981,9 @@
     const activeSegmentIds = getSelectedSegmentIds(sdk);
     const hasSameSelection =
       activeSegmentIds.length === expectedSegmentIds.length &&
-      expectedSegmentIds.every((segmentId) => activeSegmentIds.includes(segmentId));
+      expectedSegmentIds.every((segmentId) =>
+        activeSegmentIds.includes(segmentId),
+      );
 
     if (hasSameSelection) {
       return;
@@ -3911,7 +4076,9 @@
     }
 
     try {
-      if (sdk.Shortcuts.isShortcutRegistered({ shortcutId: shortcut.shortcutId })) {
+      if (
+        sdk.Shortcuts.isShortcutRegistered({ shortcutId: shortcut.shortcutId })
+      ) {
         sdk.Shortcuts.deleteShortcut({ shortcutId: shortcut.shortcutId });
       }
       sdk.Shortcuts.createShortcut(shortcut);
@@ -3944,9 +4111,7 @@
       !sdk?.Shortcuts?.areShortcutKeysInUse ||
       !sdk.Shortcuts.areShortcutKeysInUse({ shortcutKeys: "H" });
 
-    const didRegisterH = canUseH
-      ? upsertShortcut(sdk, toggleShortcut)
-      : false;
+    const didRegisterH = canUseH ? upsertShortcut(sdk, toggleShortcut) : false;
 
     if (!didRegisterH) {
       upsertShortcut(sdk, {
@@ -3958,9 +4123,11 @@
     }
 
     try {
-      if (sdk?.Shortcuts?.isShortcutRegistered?.({
-        shortcutId: SHORTCUT_IDS.exitClickMode,
-      })) {
+      if (
+        sdk?.Shortcuts?.isShortcutRegistered?.({
+          shortcutId: SHORTCUT_IDS.exitClickMode,
+        })
+      ) {
         sdk.Shortcuts.deleteShortcut({
           shortcutId: SHORTCUT_IDS.exitClickMode,
         });
@@ -3992,13 +4159,16 @@
     message = "Exited click-numbering mode.",
     tone = "info",
   ) {
+    const cleanupTempCarrierSegments =
+      clickNumberingSession?.cleanupTempCarrierSegments;
     clickNumberingSession = null;
+    cleanupTempCarrierSegments?.();
     updateStatus(message, tone);
     refreshRunButtonState(sdk);
   }
 
   function startClickNumberingMode(sdk, settings) {
-    const context = resolvePlacementContext(sdk, {
+    const context = resolvePlacementContext(sdk, settings, {
       refreshRunButtonOnError: true,
     });
     if (!context) {
@@ -4011,7 +4181,9 @@
         .map((segment) => Number(segment?.id))
         .filter((segmentId) => Number.isFinite(segmentId)),
       roadSegmentCandidates: context.roadSegmentCandidates,
-      houseNumbersApi: context.houseNumbersApi,
+      addNumberAtPoint: context.addNumberAtPoint,
+      cleanupTempCarrierSegments: context.cleanupTempCarrierSegments,
+      placementModeLabel: context.placementModeLabel,
       mode: settings.mode,
       incrementStep: settings.incrementStep,
       skip13: settings.skip13,
@@ -4037,7 +4209,9 @@
 
     keepClickSessionSegmentSelected(sdk);
 
-    updateStatus("Click map to add HNs. Shift-click to finish, Esc to exit.");
+    updateStatus(
+      `Click map to add ${context.placementModeLabel}. Shift-click to finish, Esc to exit.`,
+    );
     refreshRunButtonState(sdk);
   }
 
@@ -4112,12 +4286,19 @@
       }
     }
 
-    addHouseNumberAtPoint(
-      clickNumberingSession.houseNumbersApi,
-      numberToAdd,
-      segmentId,
-      resolvedLonLat,
-    );
+    if (
+      !clickNumberingSession.addNumberAtPoint(
+        numberToAdd,
+        segmentId,
+        resolvedLonLat,
+      )
+    ) {
+      updateStatus(
+        `Failed to add #${numberToAdd} in ${clickNumberingSession.placementModeLabel} mode.`,
+        "error",
+      );
+      return;
+    }
 
     clickNumberingSession.lastPlacedValue = numberToAdd;
 
@@ -4407,6 +4588,8 @@
     }
 
     const workflow = getWorkflowMode();
+    const placementMode = getUiSettings().placementMode;
+    const placementLabel = placementMode === "rpp" ? "RPPs" : "HNs";
     const canRun = getSelectedSegmentId(sdk) !== null;
 
     if (workflow === "click") {
@@ -4425,8 +4608,8 @@
     runButton.textContent = isRunning
       ? "Working…"
       : workflow === "area"
-        ? "Draw area and add HNs"
-        : "Draw line and add HNs";
+        ? `Draw area and add ${placementLabel}`
+        : `Draw line and add ${placementLabel}`;
     runButton.title = clickNumberingSession
       ? "Stop click mode first"
       : canRun
@@ -4450,15 +4633,122 @@
     return null;
   }
 
+  function getVenuesApi(sdk) {
+    if (
+      sdk?.DataModel?.Venues &&
+      typeof sdk.DataModel.Venues.addVenue === "function" &&
+      typeof sdk.DataModel.Venues.updateAddress === "function"
+    ) {
+      return sdk.DataModel.Venues;
+    }
+    if (
+      sdk?.Venues &&
+      typeof sdk.Venues.addVenue === "function" &&
+      typeof sdk.Venues.updateAddress === "function"
+    ) {
+      return sdk.Venues;
+    }
+    return null;
+  }
+
+  function getPrimaryStreetForSegment(sdk, segmentId) {
+    const segment = getSegmentByIdSafe(sdk, Number(segmentId));
+    const streetId = Number(segment?.primaryStreetId);
+    if (!segment || !Number.isFinite(streetId) || streetId <= 0) {
+      return { segment: segment || null, street: null };
+    }
+
+    return {
+      segment,
+      street: getStreetByIdSafe(sdk, streetId),
+    };
+  }
+
+  function resolveRppRoadMetadata(sdk, selectedSegmentId) {
+    const { segment, street } = getPrimaryStreetForSegment(
+      sdk,
+      selectedSegmentId,
+    );
+    const roadName = String(street?.name ?? segment?.streetName ?? "").trim();
+    const cityId = Number(street?.cityId ?? street?.cityID);
+    const isNumberedRoad = isLikelyNumberedRoadName(roadName);
+    const rppStreetName = stripNumberedRoadPrefix(roadName);
+
+    return {
+      roadName,
+      isNumberedRoad,
+      rppStreetName,
+      cityId: Number.isFinite(cityId) ? cityId : null,
+    };
+  }
+
+  function getPlacementModeLabel(placementMode) {
+    return placementMode === "rpp" ? "RPPs" : "HNs";
+  }
+
+  function applyAutoPlacementModeForSelectedRoad(sdk, { silent = false } = {}) {
+    const settings = getUiSettings();
+    if (!settings.autoRppForNumberedRoad) {
+      return;
+    }
+
+    const selectedSegmentId = getSelectedSegmentId(sdk);
+    if (selectedSegmentId === null) {
+      return;
+    }
+
+    const rppRoadMetadata = resolveRppRoadMetadata(sdk, selectedSegmentId);
+    const nextPlacementMode = rppRoadMetadata.isNumberedRoad ? "rpp" : "hn";
+    if (settings.placementMode === nextPlacementMode) {
+      return;
+    }
+
+    const placementModeSelect = panelElement?.querySelector(
+      `#${UI_IDS.placementMode}`,
+    );
+    if (placementModeSelect) {
+      placementModeSelect.value = nextPlacementMode;
+    }
+    saveUiSettings(getUiSettings());
+    refreshTipMessage();
+    refreshRppStreetHint(sdk);
+    refreshRunButtonState(sdk);
+
+    if (!silent) {
+      if (nextPlacementMode === "rpp") {
+        updateStatus(
+          `Detected numbered road (${rppRoadMetadata.roadName}); switched to RPP mode.`,
+        );
+      } else {
+        updateStatus(
+          `Detected non-numbered road (${rppRoadMetadata.roadName || "unnamed"}); switched to HN mode.`,
+        );
+      }
+    }
+  }
+
   function resolvePlacementContext(
     sdk,
+    settings,
     { refreshRunButtonOnError = false } = {},
   ) {
-    const fail = (message, shouldLogHouseNumberApiError = false) => {
-      if (shouldLogHouseNumberApiError)
+    const fail = (
+      message,
+      {
+        shouldLogHouseNumberApiError = false,
+        shouldLogVenueApiError = false,
+      } = {},
+    ) => {
+      if (shouldLogHouseNumberApiError) {
         console.error(
           "[WME Super House Numbers] HouseNumbers API is unavailable on SDK instance",
         );
+      }
+      if (shouldLogVenueApiError) {
+        console.error(
+          "[WME Super House Numbers] Venues API is unavailable on SDK instance",
+        );
+      }
       updateStatus(message, "error");
       if (refreshRunButtonOnError) refreshRunButtonState(sdk);
       return null;
@@ -4473,9 +4763,54 @@
       return fail("Editing is currently disabled in WME.");
     }
 
-    const houseNumbersApi = getHouseNumbersApi(sdk);
-    if (!houseNumbersApi) {
-      return fail("House number API is unavailable in this WME version.", true);
+    const placementMode = settings?.placementMode === "rpp" ? "rpp" : "hn";
+    const placementModeLabel = getPlacementModeLabel(placementMode);
+
+    const houseNumbersApi =
+      placementMode === "hn" ? getHouseNumbersApi(sdk) : null;
+    if (placementMode === "hn" && !houseNumbersApi) {
+      return fail("House number API is unavailable in this WME version.", {
+        shouldLogHouseNumberApiError: true,
+      });
+    }
+
+    const venuesApi = placementMode === "rpp" ? getVenuesApi(sdk) : null;
+    if (placementMode === "rpp" && !venuesApi) {
+      return fail("Places API is unavailable in this WME version.", {
+        shouldLogVenueApiError: true,
+      });
+    }
+
+    let rppStreetId = null;
+    if (placementMode === "rpp") {
+      const rppRoadMetadata = resolveRppRoadMetadata(sdk, selectedSegmentId);
+      const roadName = String(rppRoadMetadata.roadName ?? "").trim();
+      const targetStreetName = rppRoadMetadata.isNumberedRoad
+        ? stripNumberedRoadPrefix(roadName)
+        : roadName;
+
+      if (!targetStreetName) {
+        return fail(
+          "Could not resolve a valid road/street name for RPP placement.",
+        );
+      }
+
+      const targetStreet = getOrCreateDeNumberedStreet(
+        sdk,
+        targetStreetName,
+        rppRoadMetadata.cityId,
+      );
+
+      // Double check that the road does in fact exist and matches the expected name, to avoid creating streets based on bad data
+      try {
+        getStreetByIdSafe(sdk, targetStreet.id);
+      } catch {
+        return fail(
+          "Could not verify existence of street for RPP placement. Street data may be incomplete or corrupted.",
+        );
+      }
+
+      rppStreetId = targetStreet.id;
     }
 
     const roadSegmentCandidates = getRoadSegmentCandidates(
@@ -4488,7 +4823,28 @@
       );
     }
 
-    return { selectedSegmentId, houseNumbersApi, roadSegmentCandidates };
+    const addNumberAtPoint = (number, segmentId, lonLat) => {
+      if (placementMode === "rpp") {
+        return addResidentialPlaceAtPoint(
+          venuesApi,
+          number,
+          lonLat,
+          rppStreetId,
+        );
+      }
+
+      addHouseNumberAtPoint(houseNumbersApi, number, segmentId, lonLat);
+      return true;
+    };
+
+    return {
+      selectedSegmentId,
+      roadSegmentCandidates,
+      placementMode,
+      placementModeLabel,
+      addNumberAtPoint,
+      cleanupTempCarrierSegments: () => {},
+    };
   }
 
   async function runSuperHouseNumbers(sdk) {
@@ -4512,7 +4868,7 @@
       return;
     }
 
-    const context = resolvePlacementContext(sdk);
+    const context = resolvePlacementContext(sdk, settings);
     if (!context) {
       return;
     }
@@ -4552,6 +4908,7 @@
         numbers.length,
       );
       const placementCount = Math.min(numbers.length, normalizedPoints.length);
+      let successfulPlacements = 0;
 
       for (let index = 0; index < placementCount; index += 1) {
         const [lon, lat] = normalizedPoints[index];
@@ -4560,16 +4917,13 @@
           context.roadSegmentCandidates,
           context.selectedSegmentId,
         );
-        addHouseNumberAtPoint(
-          context.houseNumbersApi,
-          numbers[index],
-          segmentId,
-          [lon, lat],
-        );
+        if (context.addNumberAtPoint(numbers[index], segmentId, [lon, lat])) {
+          successfulPlacements += 1;
+        }
       }
 
-      if (placementCount > 0) {
-        const lastPlacedNumber = numbers[Math.max(0, placementCount - 1)];
+      if (successfulPlacements > 0) {
+        const lastPlacedNumber = numbers[Math.max(0, successfulPlacements - 1)];
         const parsedLastPlaced = parseHouseNumberValue(lastPlacedNumber);
         if (parsedLastPlaced?.kind === "numeric") {
           const suggestedStart = getSuggestedNextStartNumber(
@@ -4593,7 +4947,7 @@
       }
 
       updateStatus(
-        `Added ${placementCount} house numbers. Check and adjust as needed.`,
+        `Added ${successfulPlacements} ${context.placementModeLabel}. Check and adjust as needed.`,
         "success",
       );
     } catch (error) {
@@ -4607,11 +4961,12 @@
         return;
       }
       console.error(
-        "[WME Super House Numbers] Failed to add house numbers",
+        "[WME Super House Numbers] Failed to add numbered items",
         error,
       );
-      updateStatus("Failed to add house numbers. See console error.", "error");
+      updateStatus("Failed to add items. See console error.", "error");
     } finally {
+      context.cleanupTempCarrierSegments?.();
       isRunning = false;
       setRunButtonBusy(false);
       refreshRunButtonState(sdk);
@@ -4649,6 +5004,15 @@
                         </select>
                     </label>
                 </div>
+                <div style="margin-bottom:8px;">
+                  <label>Placement mode
+                    <select id="${UI_IDS.placementMode}" style="width:100%;">
+                      <option value="hn">House Numbers (HN)</option>
+                      <option value="rpp">Residential Place Points (RPP)</option>
+                    </select>
+                  </label>
+                  <label style="font-size:11px;display:block;margin-top:4px;"><input id="${UI_IDS.autoRppForNumberedRoad}" type="checkbox" /> Auto-switch to RPP on numbered roads</label>
+                </div>
 				<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
                     <label>Start #<input id="${UI_IDS.start}" type="text" value="1" style="width:100%;" /></label>
                     <label id="${UI_IDS.endWrap}">End #<input id="${UI_IDS.end}" type="text" value="10" style="width:100%;" /></label>
@@ -4671,6 +5035,7 @@
                 </div>
 				<button id="${UI_IDS.run}" type="button">Draw line and add HNs</button>
                 <div id="${UI_IDS.status}" style="margin-top:8px;opacity:0.85;">Ready.</div>
+                <div id="${UI_IDS.rppHint}" style="margin-top:6px;opacity:0.75;font-size:11px;display:none;"></div>
                 <div id="${UI_IDS.tip}" style="margin-top:8px;opacity:0.75;font-size:11px;white-space:pre-line;">Tip: End # is inclusive
 for all workflows/modes.</div>
 			</div>
@@ -4688,6 +5053,12 @@ for all workflows/modes.</div>
       `#${UI_IDS.toolLocation}`,
     );
     const workflowSelect = panelElement.querySelector(`#${UI_IDS.workflow}`);
+    const placementModeSelect = panelElement.querySelector(
+      `#${UI_IDS.placementMode}`,
+    );
+    const autoRppForNumberedRoadInput = panelElement.querySelector(
+      `#${UI_IDS.autoRppForNumberedRoad}`,
+    );
     const startInput = panelElement.querySelector(`#${UI_IDS.start}`);
     const endInput = panelElement.querySelector(`#${UI_IDS.end}`);
     const modeSelect = panelElement.querySelector(`#${UI_IDS.mode}`);
@@ -4697,6 +5068,7 @@ for all workflows/modes.</div>
     [
       [toolLocationSelect, savedSettings.toolLocation],
       [workflowSelect, savedSettings.workflow],
+      [placementModeSelect, savedSettings.placementMode],
       [startInput, String(savedSettings.startNumber)],
       [endInput, String(savedSettings.endNumber)],
       [modeSelect, savedSettings.mode],
@@ -4708,6 +5080,10 @@ for all workflows/modes.</div>
     });
     if (skip13Input) {
       skip13Input.checked = savedSettings.skip13;
+    }
+    if (autoRppForNumberedRoadInput) {
+      autoRppForNumberedRoadInput.checked =
+        savedSettings.autoRppForNumberedRoad;
     }
     if (toolLocationSelect) {
       toolLocationSelect.addEventListener("change", () => {
@@ -4730,6 +5106,22 @@ for all workflows/modes.</div>
         } else {
           refreshRunButtonState(sdk);
         }
+      });
+    }
+
+    if (placementModeSelect) {
+      placementModeSelect.addEventListener("change", () => {
+        saveUiSettings(getUiSettings());
+        refreshTipMessage();
+        refreshRppStreetHint(sdk);
+        refreshRunButtonState(sdk);
+      });
+    }
+
+    if (autoRppForNumberedRoadInput) {
+      autoRppForNumberedRoadInput.addEventListener("change", () => {
+        saveUiSettings(getUiSettings());
+        applyAutoPlacementModeForSelectedRoad(sdk);
       });
     }
 
@@ -4768,12 +5160,15 @@ for all workflows/modes.</div>
     refreshTipMessage();
     refreshEndNumberControl();
     refreshIncrementControl();
+    refreshRppStreetHint(sdk);
+    applyAutoPlacementModeForSelectedRoad(sdk, { silent: true });
     applyToolLocation(sdk);
     refreshRunButtonState(sdk);
   }
 
   function initMapOverlayPanel(sdk) {
     try {
+      activeSdk = sdk;
       const existingPanel = document.getElementById(OVERLAY_PANEL_ID);
       if (existingPanel) {
         existingPanel.remove();
@@ -4832,6 +5227,8 @@ for all workflows/modes.</div>
 
       registerSdkEvent("wme-selection-changed", () => {
         keepClickSessionSegmentSelected(sdk);
+        applyAutoPlacementModeForSelectedRoad(sdk);
+        refreshRppStreetHint(sdk);
         const selectedRoadKey = getSelectedRoadKey(sdk);
         if (selectedRoadKey && selectedRoadKey !== lastSelectedRoadKey) {
           resetStartForRoadChange(sdk);
@@ -4907,12 +5304,19 @@ for all workflows/modes.</div>
           const numberToAdd = formatHouseNumberValue(
             clickNumberingSession.currentValue,
           );
-          addHouseNumberAtPoint(
-            clickNumberingSession.houseNumbersApi,
-            numberToAdd,
-            segmentId,
-            resolvedLonLat,
-          );
+          if (
+            !clickNumberingSession.addNumberAtPoint(
+              numberToAdd,
+              segmentId,
+              resolvedLonLat,
+            )
+          ) {
+            updateStatus(
+              `Failed to add #${numberToAdd} in ${clickNumberingSession.placementModeLabel} mode.`,
+              "error",
+            );
+            return;
+          }
 
           stopClickNumberingMode(
             sdk,

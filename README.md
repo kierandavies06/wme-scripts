@@ -26,7 +26,7 @@ Displays Live Map alerts directly in WME so you can review active reports while 
 Speeds up house-number entry with draw-line, click-to-add, odd/even, increment, skip-13, and scan/review utilities.
 
 - Script file: `WME-SuperHN.user.js`
-- Current in-repo version: `0.1.0`
+- Current in-repo version: `0.2.0`
 - Description: `Rapidly add equally spaced house numbers along a drawn line, with odd/even and skip-13 support.`
 
 **Greasy Fork URL:**

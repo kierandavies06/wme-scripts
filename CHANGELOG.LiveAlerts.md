@@ -1,5 +1,9 @@
 # WME Live Alerts Changelog
 
+## 0.2.1 - 2026-04-05
+- Fix road closures missing from the config filter list.
+- Add collapsible filter groups in the Live Alerts config panel.
+
 ## 0.2.0 - 2026-04-05
 - Add full Live Map alert type/subtype definitions and SVG mappings.
 - Add the Scripts sidebar panel with stats and hazard subtype filter controls.

@@ -6,7 +6,7 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=waze.com
 // @updateURL    https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
 // @downloadURL  https://github.com/kierandavies06/wme-scripts/raw/refs/heads/main/WME-LiveAlerts.user.js
-// @version      0.2.0
+// @version      0.2.1
 // @license      MIT
 // @grant        none
 // @namespace    https://greasyfork.org/users/1577571
@@ -118,8 +118,15 @@
     },
     {},
   );
+  const FILTER_GROUP_COLLAPSE_STORAGE_KEY =
+    "wme-live-alerts:collapsed-filter-groups";
+  const FILTERABLE_ALERT_CODES = ["HAZARD", "ROAD_CLOSED", "SYSTEM_ROAD_CLOSED"];
   const HAZARD_FILTER_OPTIONS = Object.entries(ALERT_DEFINITIONS)
-    .filter(([code]) => code === "HAZARD" || code.startsWith("HAZARD_"))
+    .filter(
+      ([code]) => FILTERABLE_ALERT_CODES.includes(code)
+        || code.startsWith("HAZARD_")
+        || code.startsWith("ROAD_CLOSED_"),
+    )
     .map(([code, { label }]) => ({ code, label }))
     .sort((left, right) => left.label.localeCompare(right.label));
   const DEFAULT_VISIBLE_HAZARD_CODES = HAZARD_FILTER_OPTIONS.map(
@@ -128,7 +135,11 @@
   const DEFAULT_VISIBLE_HAZARD_CODE_SET = new Set(DEFAULT_VISIBLE_HAZARD_CODES);
   const HAZARD_FILTER_GROUPS = (() => {
     const groupedDefinitions = [
-      { key: "general", label: "General", match: (/** @type {string} */ code) => code === "HAZARD" },
+      {
+        key: "general",
+        label: "Hazards",
+        match: (/** @type {string} */ code) => code === "HAZARD",
+      },
       {
         key: "road",
         label: "On road",
@@ -143,6 +154,13 @@
         key: "weather",
         label: "Weather",
         match: (/** @type {string} */ code) => code.startsWith("HAZARD_WEATHER"),
+      },
+      {
+        key: "closures",
+        label: "Closures",
+        match: (/** @type {string} */ code) => code === "ROAD_CLOSED"
+          || code === "SYSTEM_ROAD_CLOSED"
+          || code.startsWith("ROAD_CLOSED_"),
       },
     ];
     const remainingCodes = new Set(DEFAULT_VISIBLE_HAZARD_CODES);
@@ -166,6 +184,9 @@
 
     return groups;
   })();
+  const HAZARD_FILTER_GROUP_KEY_SET = new Set(
+    HAZARD_FILTER_GROUPS.map(({ key }) => key),
+  );
 
   /**
      * @type {null}
@@ -196,6 +217,7 @@
   let ignoreNextMapClickClose = false;
   let isAlertsLayerVisible = true;
   let visibleHazardCodes = new Set(getStoredVisibleHazardCodes());
+  let collapsedFilterGroupKeys = new Set(getStoredCollapsedFilterGroupKeys());
   /**
      * @type {Element | null}
      */
@@ -363,24 +385,72 @@
     setStoredVisibleHazardCodes(normalizedCodes);
   }
 
+  function getStoredCollapsedFilterGroupKeys() {
+    try {
+      const storedValue = window.localStorage.getItem(
+        FILTER_GROUP_COLLAPSE_STORAGE_KEY,
+      );
+      if (!storedValue) {
+        return [];
+      }
+
+      const parsedValue = JSON.parse(storedValue);
+      return Array.isArray(parsedValue)
+        ? parsedValue.filter((key) => HAZARD_FILTER_GROUP_KEY_SET.has(key))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+
   /**
-     * @param {{ type: string; subtype: any; }} alert
+     * @param {any[]} keys
+     */
+  function setCollapsedFilterGroupKeys(keys) {
+    const normalizedKeys = (Array.isArray(keys) ? keys : []).filter((key) =>
+      HAZARD_FILTER_GROUP_KEY_SET.has(key),
+    );
+    collapsedFilterGroupKeys = new Set(normalizedKeys);
+
+    try {
+      window.localStorage.setItem(
+        FILTER_GROUP_COLLAPSE_STORAGE_KEY,
+        JSON.stringify(normalizedKeys),
+      );
+    } catch {}
+  }
+
+  /**
+     * @param {{ type?: string; subtype?: string; }} alert
+     */
+  function getAlertFilterCode(alert) {
+    if (!alert || typeof alert !== "object") {
+      return null;
+    }
+
+    if (
+      typeof alert.subtype === "string"
+      && DEFAULT_VISIBLE_HAZARD_CODE_SET.has(alert.subtype)
+    ) {
+      return alert.subtype;
+    }
+
+    if (
+      typeof alert.type === "string"
+      && DEFAULT_VISIBLE_HAZARD_CODE_SET.has(alert.type)
+    ) {
+      return alert.type;
+    }
+
+    return null;
+  }
+
+  /**
+     * @param {{ type?: string; subtype?: string; }} alert
      */
   function isAlertVisibleByFilters(alert) {
-    if (!alert || alert.type !== "HAZARD") {
-      return true;
-    }
-
-    const subtypeCode =
-      typeof alert.subtype === "string" && alert.subtype
-        ? alert.subtype
-        : "HAZARD";
-
-    if (DEFAULT_VISIBLE_HAZARD_CODE_SET.has(subtypeCode)) {
-      return visibleHazardCodes.has(subtypeCode);
-    }
-
-    return visibleHazardCodes.has("HAZARD");
+    const filterCode = getAlertFilterCode(alert);
+    return filterCode ? visibleHazardCodes.has(filterCode) : true;
   }
 
   /**
@@ -462,17 +532,17 @@
           .join("");
 
         return `
-          <div style="border:1px solid var(--separator_default, rgba(0,0,0,0.15));border-radius:6px;padding:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;">
-              <div style="font-size:11px;font-weight:600;opacity:0.9;">${escapeHtml(label)}</div>
+          <details data-live-alerts-filter-group-details="${key}" ${collapsedFilterGroupKeys.has(key) ? "" : "open"} style="border:1px solid var(--separator_default, rgba(0,0,0,0.15));border-radius:6px;padding:8px;">
+            <summary style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">
+              <span style="font-size:11px;font-weight:600;opacity:0.9;">${escapeHtml(label)}</span>
               <span style="font-size:11px;opacity:0.8;">${enabledCount}/${options.length}</span>
-            </div>
-            <div style="display:flex;gap:6px;margin-bottom:6px;align-items:stretch;">
+            </summary>
+            <div style="display:flex;gap:6px;margin:8px 0 6px;align-items:stretch;">
               <button type="button" data-live-alerts-hazard-group="${key}" data-live-alerts-hazard-group-action="all" style="${tabButtonStyle(false)}">All</button>
               <button type="button" data-live-alerts-hazard-group="${key}" data-live-alerts-hazard-group-action="none" style="${tabButtonStyle(false)}">None</button>
             </div>
             <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start;">${optionHtml}</div>
-          </div>
+          </details>
         `;
       },
     ).join("");
@@ -481,21 +551,21 @@
     userscriptsPanelElement.innerHTML = `
             <div style="font-weight:600;margin-bottom:6px;">${SCRIPT_NAME}</div>
             <div style="${USERSCRIPTS_DESCRIPTION_STYLE}">Display Live Map alerts in WME.</div>
-            <div style="${USERSCRIPTS_DESCRIPTION_STYLE}"><b>Note:</b> Use the filters below to show or hide specific hazard subtypes.</div>
+            <div style="${USERSCRIPTS_DESCRIPTION_STYLE}"><b>Note:</b> Use the filters below to show or hide specific hazards and road closures.</div>
             <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;">
                 <button type="button" data-live-alerts-tab="config" style="${tabButtonStyle(isConfigTab)}">Config</button>
                 <button type="button" data-live-alerts-tab="stats" style="${tabButtonStyle(!isConfigTab)}">Stats</button>
             </div>
             <div data-live-alerts-panel="config" style="${USERSCRIPTS_SECTION_STYLE}${isConfigTab ? "" : "display:none;"}">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                    <div style="font-size:11px;font-weight:600;opacity:0.9;">Hazard subtype filters</div>
+                    <div style="font-size:11px;font-weight:600;opacity:0.9;">Alert filters</div>
                     <span style="font-size:11px;opacity:0.8;">${enabledHazardCount}/${HAZARD_FILTER_OPTIONS.length} shown</span>
                 </div>
                 <div style="display:flex;gap:6px;align-items:stretch;">
                     <button type="button" data-live-alerts-hazard-bulk="all" style="${tabButtonStyle(false)}">Show all</button>
                     <button type="button" data-live-alerts-hazard-bulk="none" style="${tabButtonStyle(false)}">Hide all</button>
                 </div>
-                <div style="${USERSCRIPTS_DESCRIPTION_STYLE.replace("margin-bottom:8px;", "")}">Checked hazard subtypes will appear on the map and in stats.</div>
+                <div style="${USERSCRIPTS_DESCRIPTION_STYLE.replace("margin-bottom:8px;", "")}">Checked hazards and closures will appear on the map and in stats.</div>
                 <div style="display:grid;gap:8px;max-height:220px;overflow:auto;">${hazardFilterHtml}</div>
             </div>
             <div data-live-alerts-panel="stats" style="${USERSCRIPTS_SECTION_STYLE}${isConfigTab ? "display:none;" : ""}">
@@ -569,6 +639,27 @@
           });
           setVisibleHazardCodes([...nextCodes]);
           refreshAlertVisibility(statusText);
+        });
+      });
+
+    userscriptsPanelElement
+      .querySelectorAll("[data-live-alerts-filter-group-details]")
+      .forEach((/** @type {{ addEventListener: (arg0: string, arg1: () => void) => void; getAttribute: (arg0: string) => any; open: boolean; }} */ detailsElement) => {
+        detailsElement.addEventListener("toggle", () => {
+          const groupKey = detailsElement.getAttribute(
+            "data-live-alerts-filter-group-details",
+          );
+          if (!groupKey) {
+            return;
+          }
+
+          const nextCollapsedGroupKeys = new Set(collapsedFilterGroupKeys);
+          if (detailsElement.open) {
+            nextCollapsedGroupKeys.delete(groupKey);
+          } else {
+            nextCollapsedGroupKeys.add(groupKey);
+          }
+          setCollapsedFilterGroupKeys([...nextCollapsedGroupKeys]);
         });
       });
   }
